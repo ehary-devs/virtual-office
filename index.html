@@ -199,6 +199,13 @@ function animate(){
 }
 
 // ── Interaction ──
+function updateInfo(a){
+  const info=document.getElementById('info');
+  const statusIcon={online:'🟢',active:'🟡',checking:'🔄',counting:'🔢',idle:'⚪',error:'🔴'};
+  info.innerHTML=`<div class="name">${a.name} ${a.emoji} ${statusIcon[a.status]||''}</div>
+    <div class="role">${a.role}</div>
+    <div class="task">${a.task} · ${a.floor}</div>`;
+}
 canvas.addEventListener('mousemove',e=>{
   const mx=e.clientX, my=e.clientY;
   hovered=null;
@@ -206,13 +213,10 @@ canvas.addEventListener('mousemove',e=>{
     const dx=mx-a.x*W, dy=my-a.y*H;
     if(Math.sqrt(dx*dx+dy*dy)<40) hovered=i;
   });
-  const info=document.getElementById('info');
   if(hovered!==null){
-    const a=agents[hovered];
-    info.innerHTML=`<div class="name">${a.name} ${a.emoji}</div>
-      <div class="role">${a.role}</div>
-      <div class="task">${a.task} · ${a.floor}</div>`;
+    updateInfo(agents[hovered]);
   } else {
+    const info=document.getElementById('info');
     info.innerHTML=`<div class="name">👤 Arahkan kursor ke agent</div>
       <div class="role">untuk lihat jabatan & tugas</div>`;
   }
@@ -220,26 +224,22 @@ canvas.addEventListener('mousemove',e=>{
 
 // ── Live data fetch ──
 async function fetchStatus(){
-  // Web Monitor: ping ehary.id
   try{
-    const r=await fetch('https://ehary.id',{mode:'no-cors'});
-    agents[3].status='online';
-  }catch{e=>agents[3].status='error';}
-
-  // Blogger: count posts from API
-  try{
-    const r=await fetch('https://ehary.id/api/posts?limit=1');
-    const d=await r.json();
-    if(d.total>0){
-      agents[7].status='active';
-      agents[7].task=`${d.total} artikel terbit · ${d.posts[0].title.slice(0,30)}`;
-      agents[8].status='active';
-      agents[8].task=`${d.total} konten untuk sosial media`;
-    }
+    const r = await fetch('/api/status?'+Date.now());
+    const d = await r.json();
+    const status = d.agentStatus, task = d.task;
+    agents.forEach((a,i)=>{
+      if(status[a.id]) a.status = status[a.id];
+      if(task[a.id]) a.task = task[a.id];
+      // update info panel if currently hovering this agent
+      if(hovered===i) updateInfo(a);
+    });
+    document.querySelector('#hud .sub').textContent =
+      'Silent Fox · ' + d.posts.total + ' artikel · Server ' + (d.site.up?'🟢':'🔴');
   }catch(e){}
 }
 fetchStatus();
-setInterval(fetchStatus,30000);
+setInterval(fetchStatus,10000);
 
 animate();
 </script>
