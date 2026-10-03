@@ -45,29 +45,29 @@ let W,H; function resize(){W=canvas.width=window.innerWidth;H=canvas.height=wind
 const agents = [
   // Divisi Manajerial & Eksekutif (top floor)
   {id:'ceo',name:'Silent Fox',role:'CEO · Pemilik',emoji:'👑',x:.15,y:.15,color:'#ffd700',
-   task:'Visi, publikasi, kendali penuh',floor:'Lantai 3'},
+   task:'Visi, publikasi, kendali penuh',floor:'Lantai 3',active:false,status:'online'},
   {id:'manager',name:'Hermes Manager',role:'Manajer Proyek',emoji:'📋',x:.35,y:.15,color:'#6c8cff',
-   task:'Memecah proyek, delegasi tugas',floor:'Lantai 3'},
+   task:'Memecah proyek, delegasi tugas',floor:'Lantai 3',active:false,status:'idle'},
   {id:'assistant',name:'Hermes Assistant',role:'Asisten Eksekutif',emoji:'📅',x:.55,y:.15,color:'#6c8cff',
-   task:'Jadwal, rangkuman, laporan harian',floor:'Lantai 3'},
+   task:'Jadwal, rangkuman, laporan harian',floor:'Lantai 3',active:false,status:'idle'},
 
   // Divisi Website & Portfolio (middle floor left)
   {id:'webmon',name:'Hermes Web Monitor',role:'Analis Situs',emoji:'📡',x:.15,y:.40,color:'#64ffda',
-   task:'Ping berkala, monitor server, statistik',floor:'Lantai 2'},
+   task:'Ping berkala, monitor server, statistik',floor:'Lantai 2',active:false,status:'checking'},
   {id:'portfolio',name:'Hermes Portfolio Mgr',role:'Kurator Portofolio',emoji:'🎨',x:.35,y:.40,color:'#64ffda',
-   task:'Update portofolio dari proyek selesai',floor:'Lantai 2'},
+   task:'Update portofolio dari proyek selesai',floor:'Lantai 2',active:false,status:'idle'},
 
   // Divisi Pengembangan (middle floor right)
   {id:'backend',name:'Hermes Backend Dev',role:'Backend Engineer',emoji:'⚙️',x:.58,y:.40,color:'#ff6b6b',
-   task:'Server, API, DB, caching rute',floor:'Lantai 2'},
+   task:'Server, API, DB, caching rute',floor:'Lantai 2',active:false,status:'idle'},
   {id:'frontend',name:'Hermes Frontend/UI',role:'UI/UX Designer',emoji:'🎯',x:.78,y:.40,color:'#ff6b6b',
-   task:'User journey, layout, alur aplikasi',floor:'Lantai 2'},
+   task:'User journey, layout, alur aplikasi',floor:'Lantai 2',active:false,status:'idle'},
 
   // Divisi Konten & Pemasaran (bottom floor)
   {id:'blogger',name:'Hermes Blogger',role:'Konten Writer',emoji:'✍️',x:.25,y:.70,color:'#c084fc',
-   task:'Artikel blog dari data proyek',floor:'Lantai 1'},
+   task:'Artikel blog dari data proyek',floor:'Lantai 1',active:false,status:'counting'},
   {id:'sosmed',name:'Hermes Sosmed',role:'Media Sosial',emoji:'📱',x:.50,y:.70,color:'#c084fc',
-   task:'Caption Twitter/LinkedIn, algoritma',floor:'Lantai 1'},
+   task:'Caption Twitter/LinkedIn, algoritma',floor:'Lantai 1',active:false,status:'idle'},
 ];
 
 // ── Office layout ──
@@ -127,11 +127,26 @@ function drawAgent(a,i){
   ctx.font='9px system-ui';
   ctx.fillText(a.floor,x,y+r+20);
 
-  // Status indicator (pulse)
-  if(!hovered||hovered!==i){
-    ctx.beginPath(); ctx.arc(x+r+3,y-r+3,3,0,Math.PI*2);
-    ctx.fillStyle=a.color+'66'; ctx.fill();
+  // Status indicator (live)
+  const statusColors={online:'#64ffda',active:'#ffd700',checking:'#6c8cff',counting:'#c084fc',idle:'rgba(255,255,255,.2)',error:'#ff6b6b'};
+  const dotColor=statusColors[a.status]||statusColors.idle;
+  ctx.beginPath(); ctx.arc(x+r+3,y-r+3,3,0,Math.PI*2);
+  ctx.fillStyle=dotColor; ctx.fill();
+  if(a.status==='active'||a.status==='online'){
+    ctx.beginPath(); ctx.arc(x+r+3,y-r+3,5,0,Math.PI*2);
+    ctx.strokeStyle=dotColor+'44'; ctx.lineWidth=2; ctx.stroke();
   }
+  if(a.status==='error'){
+    ctx.beginPath(); ctx.arc(x+r+3,y-r+3,5,0,Math.PI*2);
+    ctx.strokeStyle='#ff6b6b44'; ctx.lineWidth=2; ctx.stroke();
+  }
+
+  // Live status text
+  ctx.fillStyle=dotColor;
+  ctx.font='8px system-ui'; ctx.textAlign='center'; ctx.textBaseline='bottom';
+  const labels={online:'● ONLINE',active:'▶ ACTIVE',checking:'⟳ CHECK',counting:'# COUNT',idle:'',error:'✕ DOWN'};
+  const label=labels[a.status]||'';
+  if(label) ctx.fillText(label,x,y-r-6);
 }
 
 // ── Animation loop ──
@@ -202,6 +217,29 @@ canvas.addEventListener('mousemove',e=>{
       <div class="role">untuk lihat jabatan & tugas</div>`;
   }
 });
+
+// ── Live data fetch ──
+async function fetchStatus(){
+  // Web Monitor: ping ehary.id
+  try{
+    const r=await fetch('https://ehary.id',{mode:'no-cors'});
+    agents[3].status='online';
+  }catch{e=>agents[3].status='error';}
+
+  // Blogger: count posts from API
+  try{
+    const r=await fetch('https://ehary.id/api/posts?limit=1');
+    const d=await r.json();
+    if(d.total>0){
+      agents[7].status='active';
+      agents[7].task=`${d.total} artikel terbit · ${d.posts[0].title.slice(0,30)}`;
+      agents[8].status='active';
+      agents[8].task=`${d.total} konten untuk sosial media`;
+    }
+  }catch(e){}
+}
+fetchStatus();
+setInterval(fetchStatus,30000);
 
 animate();
 </script>
