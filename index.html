@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kantor Virtual — Hermes</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0e17;font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden;height:100vh}
+canvas{display:block}
+
+/* HUD overlay */
+#hud{position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:10;text-align:center;pointer-events:none}
+#hud h1{color:#6c8cff;font-size:20px;font-weight:600;letter-spacing:3px;text-shadow:0 0 20px rgba(108,140,255,.3)}
+#hud .sub{color:#8892b0;font-size:12px;margin-top:4px;letter-spacing:1px}
+
+/* Info panel */
+#info{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);z-index:10;background:rgba(10,14,23,.85);border:1px solid rgba(108,140,255,.2);border-radius:12px;padding:12px 24px;color:#ccd6f6;font-size:13px;text-align:center;min-width:280px;backdrop-filter:blur(10px);transition:.3s}
+#info .name{color:#6c8cff;font-weight:600}
+#info .role{color:#64ffda;font-size:11px}
+#info .task{color:#8892b0;font-size:11px;margin-top:4px}
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <h1>◈ EHARY VIRTUAL OFFICE ◈</h1>
+  <div class="sub">Silent Fox · Hermes Corp</div>
+</div>
+
+<div id="info">
+  <div class="name">👤 Arahkan kursor ke agent</div>
+  <div class="role">untuk lihat jabatan & tugas</div>
+</div>
+
+<script>
+const canvas = document.getElementById('hud').parentElement.querySelector('canvas') || (()=>{
+  const c=document.createElement('canvas');c.style.position='fixed';c.style.inset=0;c.style.zIndex=0;
+  document.body.prepend(c);return c
+})();
+const ctx = canvas.getContext('2d');
+let W,H; function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight} resize(); window.addEventListener('resize',resize);
+
+// ── AGENTS ──
+const agents = [
+  // Divisi Manajerial & Eksekutif (top floor)
+  {id:'ceo',name:'Silent Fox',role:'CEO · Pemilik',emoji:'👑',x:.15,y:.15,color:'#ffd700',
+   task:'Visi, publikasi, kendali penuh',floor:'Lantai 3'},
+  {id:'manager',name:'Hermes Manager',role:'Manajer Proyek',emoji:'📋',x:.35,y:.15,color:'#6c8cff',
+   task:'Memecah proyek, delegasi tugas',floor:'Lantai 3'},
+  {id:'assistant',name:'Hermes Assistant',role:'Asisten Eksekutif',emoji:'📅',x:.55,y:.15,color:'#6c8cff',
+   task:'Jadwal, rangkuman, laporan harian',floor:'Lantai 3'},
+
+  // Divisi Website & Portfolio (middle floor left)
+  {id:'webmon',name:'Hermes Web Monitor',role:'Analis Situs',emoji:'📡',x:.15,y:.40,color:'#64ffda',
+   task:'Ping berkala, monitor server, statistik',floor:'Lantai 2'},
+  {id:'portfolio',name:'Hermes Portfolio Mgr',role:'Kurator Portofolio',emoji:'🎨',x:.35,y:.40,color:'#64ffda',
+   task:'Update portofolio dari proyek selesai',floor:'Lantai 2'},
+
+  // Divisi Pengembangan (middle floor right)
+  {id:'backend',name:'Hermes Backend Dev',role:'Backend Engineer',emoji:'⚙️',x:.58,y:.40,color:'#ff6b6b',
+   task:'Server, API, DB, caching rute',floor:'Lantai 2'},
+  {id:'frontend',name:'Hermes Frontend/UI',role:'UI/UX Designer',emoji:'🎯',x:.78,y:.40,color:'#ff6b6b',
+   task:'User journey, layout, alur aplikasi',floor:'Lantai 2'},
+
+  // Divisi Konten & Pemasaran (bottom floor)
+  {id:'blogger',name:'Hermes Blogger',role:'Konten Writer',emoji:'✍️',x:.25,y:.70,color:'#c084fc',
+   task:'Artikel blog dari data proyek',floor:'Lantai 1'},
+  {id:'sosmed',name:'Hermes Sosmed',role:'Media Sosial',emoji:'📱',x:.50,y:.70,color:'#c084fc',
+   task:'Caption Twitter/LinkedIn, algoritma',floor:'Lantai 1'},
+];
+
+// ── Office layout ──
+const floors = [
+  {y:.0,label:'Lantai 3 — Manajerial & Eksekutif'},
+  {y:.28,label:'Lantai 2 — Website & Pengembangan'},
+  {y:.56,label:'Lantai 1 — Konten & Pemasaran'},
+];
+
+let hovered = null;
+let time = 0;
+
+function drawFloor(y, label){
+  const Y=y*H;
+  ctx.fillStyle='rgba(108,140,255,.04)';
+  ctx.fillRect(0,Y,W,H*.28);
+  ctx.strokeStyle='rgba(108,140,255,.08)';
+  ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(0,Y); ctx.lineTo(W,Y); ctx.stroke();
+  ctx.fillStyle='rgba(108,140,255,.15)';
+  ctx.font='11px system-ui'; ctx.textAlign='left'; ctx.textBaseline='top';
+  ctx.fillText('— '+label, 20, Y+6);
+}
+
+function drawAgent(a,i){
+  const x=a.x*W, y=a.y*H;
+  const r=22 + Math.sin(time*.02+i)*1.5;
+  const glow=hovered===i?'rgba(108,140,255,.3)':'rgba(108,140,255,.05)';
+
+  // Shadow
+  ctx.beginPath(); ctx.arc(x+2,y+2,r,0,Math.PI*2);
+  ctx.fillStyle='rgba(0,0,0,.3)'; ctx.fill();
+
+  // Circle
+  const grad=ctx.createRadialGradient(x-5,y-5,2,x,y,r);
+  grad.addColorStop(0,hovered===i?a.color:'rgba(255,255,255,.9)');
+  grad.addColorStop(1,hovered===i?a.color+'33':a.color+'22');
+  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
+  ctx.fillStyle=grad; ctx.fill();
+  ctx.strokeStyle=hovered===i?a.color:a.color+'44';
+  ctx.lineWidth=hovered===i?2:1;
+  ctx.stroke();
+
+  // Emoji or icon
+  ctx.font=`${hovered===i?20:16}px system-ui`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(a.emoji,x,y-1);
+
+  // Name
+  ctx.fillStyle=hovered===i?'#fff':'rgba(255,255,255,.6)';
+  ctx.font=hovered===i?'bold 12px system-ui':'11px system-ui';
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  ctx.fillText(a.name,x,y+r+6);
+
+  // Floor label
+  ctx.fillStyle='rgba(255,255,255,.15)';
+  ctx.font='9px system-ui';
+  ctx.fillText(a.floor,x,y+r+20);
+
+  // Status indicator (pulse)
+  if(!hovered||hovered!==i){
+    ctx.beginPath(); ctx.arc(x+r+3,y-r+3,3,0,Math.PI*2);
+    ctx.fillStyle=a.color+'66'; ctx.fill();
+  }
+}
+
+// ── Animation loop ──
+function animate(){
+  time++;
+  ctx.clearRect(0,0,W,H);
+
+  // Background grid
+  ctx.strokeStyle='rgba(108,140,255,.03)';
+  ctx.lineWidth=1;
+  for(let x=0;x<W;x+=40){
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
+  }
+  for(let y=0;y<H;y+=40){
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+  }
+
+  // Floors
+  floors.forEach(f=>drawFloor(f.y,f.label));
+
+  // Connecting lines (shows hierarchy)
+  ctx.strokeStyle='rgba(108,140,255,.06)';
+  ctx.lineWidth=1;
+  ctx.setLineDash([4,6]);
+  // CEO → Manager
+  ctx.beginPath(); ctx.moveTo(agents[0].x*W,agents[0].y*H);
+  ctx.lineTo(agents[1].x*W,agents[1].y*H); ctx.stroke();
+  // Manager → Assistant
+  ctx.beginPath(); ctx.moveTo(agents[1].x*W,agents[1].y*H);
+  ctx.lineTo(agents[2].x*W,agents[2].y*H); ctx.stroke();
+  // Manager → down to other divisions
+  [3,4,5,6,7,8].forEach(i=>{
+    ctx.beginPath(); ctx.moveTo(agents[1].x*W,agents[1].y*H);
+    ctx.lineTo(agents[i].x*W,agents[i].y*H); ctx.stroke();
+  });
+  ctx.setLineDash([]);
+
+  // Vertical divider between divisions on floor 2
+  ctx.strokeStyle='rgba(255,255,255,.03)';
+  ctx.beginPath(); ctx.moveTo(W*.5,.28*H); ctx.lineTo(W*.5,.56*H); ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,.05)';
+  ctx.font='9px system-ui'; ctx.textAlign='center';
+  ctx.fillText('WEBSITE',W*.25,.30*H);
+  ctx.fillText('PENGEMBANGAN',W*.75,.30*H);
+
+  // Agents
+  agents.forEach((a,i)=>drawAgent(a,i));
+
+  requestAnimationFrame(animate);
+}
+
+// ── Interaction ──
+canvas.addEventListener('mousemove',e=>{
+  const mx=e.clientX, my=e.clientY;
+  hovered=null;
+  agents.forEach((a,i)=>{
+    const dx=mx-a.x*W, dy=my-a.y*H;
+    if(Math.sqrt(dx*dx+dy*dy)<40) hovered=i;
+  });
+  const info=document.getElementById('info');
+  if(hovered!==null){
+    const a=agents[hovered];
+    info.innerHTML=`<div class="name">${a.name} ${a.emoji}</div>
+      <div class="role">${a.role}</div>
+      <div class="task">${a.task} · ${a.floor}</div>`;
+  } else {
+    info.innerHTML=`<div class="name">👤 Arahkan kursor ke agent</div>
+      <div class="role">untuk lihat jabatan & tugas</div>`;
+  }
+});
+
+animate();
+</script>
+</body>
+</html>
